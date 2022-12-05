@@ -1,11 +1,17 @@
 ::source index for git repo -- xlshen@126.com
 ::Author    : Shen Xiaolong(xlshen2002@hotmail.com,xlshen@126.com)
 ::Copyright : free use,modify,spread, but MUST include this original two line information(Author and Copyright).
-cls
+REM cls
+
+:: 콘솔에 한글이 나올 경우 파싱이 제대로 되지 않아 정상동작 못한다.
+@chcp 437 > NUL
 rem call gitIndex.cmd "%LocalProjectSrcPath%" "%pdbFilePathOrPdbFolderPath%"
 ::@set EchoEnable=1
 ::@set EchoCmd=%~nx0
 ::@set _Debug=1
+
+:: %~nx0 는 현재 스크립트 파일 이름 gitindex.bat
+
 @if {%EchoEnable%}=={1} ( @echo on ) else ( @echo off )
 @for %%a in ( 1 "%~nx0" "%0" %EchoCmdList% ) do @if {"%%~a"}=={"%EchoCmd%"} @echo. & @echo [Enter %~nx0] commandLine: %0 %*
 where "%~nx0" 1>nul 2>nul || set "path=%~dp0;%path%"
@@ -85,6 +91,29 @@ goto :eof
 @for %%a in ( 1 "%~nx0" "%0" %EchoCmdList% ) do @if {"%%~a"}=={"%EchoCmd%"} @echo [%~nx0] commandLine: %0 %*
 call set %~2=
 set _tmpSrcNum=
+
+::srctool:
+::  -u  Displays only source files that are not indexed.
+::  -r  Dumps raw source data from the pdb.
+::  -s  Recurses subdirectories.
+::  -h  Dumps the hash/checksum of the source file.
+::      It is valid only when the -r or -u option is selected.
+::  -l:<mask>   Limits output to only source files that match this wildcard
+::              expression.
+::  -lf:<mask>  Same as -l except that the mask is applied only to the filename.
+::              Directory paths are ignored and all are matched.
+::  -x  Extracts the files, instead of simply listing them.
+::  -f  Extracts files to a flat directory.
+::  -n  shows version control commands and output while extracting.
+::  -d:<dir>  Specifies the directory to extract to.
+::  -c  Displays only the count of indexed files - no detail.
+::  -z  Returns zero on success or nonzero on failure.
+::  -o  Displays the full original version control extraction commands,
+::      disabling any VCS-specific output formatting heuristics.
+::  -a  Applies all available VCS-specific heuristics to parse the commands
+::      and output their contents in some user-friendly way.
+::      Without this flag, only the Source Depot (Microsoft internal) heuristic
+::      is applied.
 for /f "usebackq tokens=1" %%i in ( ` srctool.exe  "%~fs1" -r -u ^| find /i "%srcRootDir%" /c ` ) do set _tmpSrcNum=%%i
 if not {"%_tmpSrcNum%"}=={"0"} call set %~2=1
 goto :eof
@@ -133,7 +162,7 @@ goto :eof
 set _tmpGitFilePath=
 for /F "usebackq tokens=*" %%i in ( ` dir/s/b "%~1" ` ) do call set "_tmpGitFilePath=%%i"
 
-call :getCaseSensitiveePath _tmpGitFilePath "%_tmpGitFilePath%"
+call :getCaseSensitivePath _tmpGitFilePath "%_tmpGitFilePath%"
 
 call :gitTool.gitfileVer "%_tmpGitFilePath%" _tmpFileVer
 if not defined _tmpFileVer (
@@ -157,7 +186,7 @@ for /F "usebackq tokens=*" %%i in ( ` git.exe -C "%srcRootDir%" log -1 --pretty^
 if not defined %~2 echo [NoGitVer] git.exe -C "%srcRootDir%" log -1 --pretty^=format:%%H "%~1" >> "%_tmpSrcsrvSkipped%"
 goto :eof
 
-:getCaseSensitiveePath
+:getCaseSensitivePath
 @for %%a in ( 1 "%~nx0" "%0" %EchoCmdList% ) do @if {"%%~a"}=={"%EchoCmd%"} @echo [%~nx0] commandLine: %0 %*
 if not exist "%~fs2" goto :eof
 for /f "usebackq tokens=4" %%i in ( ` fsutil file queryfileid "%~fs2" ` ) do set fileID=%%i
@@ -173,23 +202,16 @@ call :verify.path "%~2"
 set "_tmpAttrib=%~a2"
 if      {"%_tmpAttrib:~0,1%"}=={"d"}    set "pdbDir=%~2"    & set pdbFile=
 if not  {"%_tmpAttrib:~0,1%"}=={"d"}    set "pdbFile=%~2"   & set pdbDir=
-call :getCaseSensitiveePath srcRootDir "%~1"
+call :getCaseSensitivePath srcRootDir "%~1"
 call :verify.path "%srcRootDir%"
 
-if not defined tempDir set "tempDir=%~dp0cache"
+:: 기존 콘드는 관리자 권한 폴더에 cache 폴더가 만들어지는 문제가 있음
+::if not defined tempDir set "tempDir=%~dp0cache"
+if not defined tempDir set tempDir=%TEMP%\gitindex_cache
+
 if exist "%tempDir%" rd /s/q "%tempDir%"
 md "%tempDir%"
 call :verify.path "%tempDir%"
-goto :eof
-
-:getCaseSensitiveePath
-@for %%a in ( 1 "%~nx0" "%0" %EchoCmdList% ) do @if {"%%~a"}=={"%EchoCmd%"} @echo [%~nx0] commandLine: %0 %*
-if not exist "%~fs2" goto :eof
-for /f "usebackq tokens=4" %%i in ( ` fsutil file queryfileid "%~fs2" ` ) do set fileID=%%i
-if defined _Debug echo fileID=%fileID%
-for /f "usebackq tokens=*" %%i in ( ` fsutil file queryFileNameById %~d2 %fileID% ` ) do set "filePath=%%i"
-if defined _Debug echo filePath=%filePath%
-set "%~1=%filePath:*\\?\=%"
 goto :eof
 
 :config
